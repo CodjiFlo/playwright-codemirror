@@ -36,6 +36,7 @@ jobs:
         run: npm test
 
   release:
+    needs: test
     runs-on: ubuntu-slim
     permissions:
       contents: write
