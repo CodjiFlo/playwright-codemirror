@@ -1,13 +1,14 @@
-name: Publish to npm
+name: Release & Publish
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (leave empty to use package.json version)'
-        required: false
+        description: 'Version to publish (e.g., 0.1.0)'
+        required: true
         type: string
 
 jobs:
@@ -34,8 +35,37 @@ jobs:
       - name: Run tests
         run: npm test
 
-  publish:
+  release:
     needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+
+  publish:
+    needs: [test, release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,9 +86,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Update version (if specified)
-        if: ${{ inputs.version }}
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+      - name: Update package.json version
+        run: npm version ${{ needs.release.outputs.version }} --no-git-tag-version
 
       - name: Publish to npm
         run: npm publish --access public --provenance
