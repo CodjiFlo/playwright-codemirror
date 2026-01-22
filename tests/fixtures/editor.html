@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeMirror Test Fixture</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: system-ui, sans-serif;
+    }
+    .editor-container {
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+    }
+    #editor-1 .cm-editor {
+      height: 300px;
+    }
+    #editor-2 .cm-editor {
+      height: 200px;
+    }
+    /* Custom extension classes for testing */
+    .cm-diff-line-addition {
+      background-color: #d4ffd4;
+    }
+    .cm-diff-line-deletion {
+      background-color: #ffd4d4;
+    }
+    .cm-diff-gutter-left {
+      color: red;
+      padding: 0 4px;
+    }
+    .cm-diff-gutter-right {
+      color: green;
+      padding: 0 4px;
+    }
+    .cm-diff-gutter-wrapper {
+      display: flex;
+    }
+    .cm-diff-word-added {
+      background-color: #90ee90;
+    }
+    .cm-diff-word-removed {
+      background-color: #ffcccb;
+    }
+  </style>
+</head>
+<body>
+  <h1>CodeMirror 6 Test Fixture</h1>
+
+  <div id="editor-1" class="editor-container"></div>
+  <div id="editor-2" class="editor-container"></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "@codemirror/state": "https://esm.sh/@codemirror/state@6.5.0",
+      "@codemirror/view": "https://esm.sh/@codemirror/view@6.35.0",
+      "@codemirror/language": "https://esm.sh/@codemirror/language@6.10.0",
+      "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.7.0",
+      "@codemirror/lang-javascript": "https://esm.sh/@codemirror/lang-javascript@6.2.0"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import { EditorState } from '@codemirror/state';
+    import { EditorView, lineNumbers, Decoration, ViewPlugin } from '@codemirror/view';
+    import { javascript } from '@codemirror/lang-javascript';
+
+    // Generate sample code with many lines for scroll testing
+    const sampleCode = Array.from({ length: 100 }, (_, i) => {
+      if (i === 0) return '// Sample JavaScript Code';
+      if (i === 1) return 'export function example() {';
+      if (i === 98) return '}';
+      if (i === 99) return '// End of file';
+      return `  console.log("Line ${i + 1}");`;
+    }).join('\n');
+
+    // Create first editor (basic)
+    const editor1 = new EditorView({
+      state: EditorState.create({
+        doc: sampleCode,
+        extensions: [
+          lineNumbers(),
+          javascript(),
+          EditorView.theme({
+            '&': { fontSize: '14px' },
+            '.cm-scroller': { overflow: 'auto' }
+          })
+        ]
+      }),
+      parent: document.getElementById('editor-1')
+    });
+
+    // Create line decoration plugin for testing diff-like features
+    const diffDecorations = ViewPlugin.fromClass(class {
+      decorations;
+      constructor(view) {
+        this.decorations = this.buildDecorations(view);
+      }
+      update(update) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.buildDecorations(update.view);
+        }
+      }
+      buildDecorations(view) {
+        const decorations = [];
+        for (let i = view.viewport.from; i < view.viewport.to;) {
+          const line = view.state.doc.lineAt(i);
+          const lineNum = line.number;
+          // Mark lines 5-7 as additions, lines 10-12 as deletions
+          if (lineNum >= 5 && lineNum <= 7) {
+            decorations.push(
+              Decoration.line({ class: 'cm-diff-line-addition' }).range(line.from)
+            );
+          } else if (lineNum >= 10 && lineNum <= 12) {
+            decorations.push(
+              Decoration.line({ class: 'cm-diff-line-deletion' }).range(line.from)
+            );
+          }
+          i = line.to + 1;
+        }
+        return Decoration.set(decorations, true);
+      }
+    }, {
+      decorations: v => v.decorations
+    });
+
+    // Custom gutter for testing
+    const diffGutter = document.createElement('div');
+    diffGutter.className = 'cm-diff-gutter-wrapper';
+    diffGutter.innerHTML = `
+      <span class="cm-diff-gutter-left">-</span>
+      <span class="cm-diff-gutter-right">+</span>
+      <span class="cm-diff-gutter-right">+</span>
+      <span class="cm-diff-gutter-right">+</span>
+    `;
+
+    // Create second editor (with diff decorations)
+    const editor2 = new EditorView({
+      state: EditorState.create({
+        doc: 'Line 1: Hello\nLine 2: World\nLine 3: Test\nLine 4: Code\nLine 5: Added\nLine 6: Added\nLine 7: Added\nLine 8: Normal\nLine 9: Normal\nLine 10: Removed\nLine 11: Removed\nLine 12: Removed\nLine 13: End',
+        extensions: [
+          lineNumbers(),
+          diffDecorations,
+          EditorView.theme({
+            '&': { fontSize: '14px' },
+            '.cm-scroller': { overflow: 'auto' }
+          })
+        ]
+      }),
+      parent: document.getElementById('editor-2')
+    });
+
+    // Add gutter wrapper to second editor
+    editor2.dom.querySelector('.cm-gutters')?.appendChild(diffGutter);
+
+    // Expose editors for test inspection
+    window.editors = { editor1, editor2 };
+  </script>
+</body>
+</html>
