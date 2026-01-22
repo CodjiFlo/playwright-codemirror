@@ -1,6 +1,6 @@
 {
   "name": "playwright-codemirror",
-  "version": "0.0.6-alpha",
+  "version": "0.0.7-alpha",
   "description": "CodeMirror 6-tailored Playwright testing helpers with idiomatic API",
   "type": "module",
   "exports": {
@@ -32,7 +32,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/codjiflo/playwright-codemirror.git"
+    "url": "git+https://github.com/CodjiFlo/playwright-codemirror.git"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"
