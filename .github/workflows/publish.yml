@@ -13,7 +13,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +37,7 @@ jobs:
 
   release:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: write
       id-token: write
@@ -66,7 +66,7 @@ jobs:
 
   publish:
     needs: [test, release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       id-token: write
