@@ -22,20 +22,41 @@ await expect(editor.scroller).toBeVisible();  // .cm-scroller
 await expect(editor.content).toBeVisible();   // .cm-content
 await expect(editor.gutters).toBeVisible();   // .cm-gutters
 
-// Line locators - names indicate virtual rendering limitation
-await expect(editor.materializedLine(1)).toContainText('// Header');
-await expect(editor.materializedLineContaining('function')).toBeVisible();
-const line = await editor.lineVisible(50);  // scrolls into view first
+// Line locators - names clarify virtual rendering behavior
+await expect(editor.lineInDOMAt(0)).toContainText('// Header'); // 0-indexed DOM position
+await expect(editor.lineInDOMContaining('function')).toBeVisible();
+
+// Scroll to line and get locator (has side effects - scrolls)
+const line = await editor.scrollToLineAndLocate(50);
+await expect(line).toContainText('// Line 50');
+
+// Query viewport without side effects
+const info = await editor.linesInViewport();
+console.log(`Visible lines: ${info.fullyVisible[0].first}-${info.fullyVisible[0].last}`);
+
+// Check visibility without scrolling
+if (await editor.isLineRendered(500)) { /* line is in DOM */ }
+if (await editor.isLineVisible(500)) { /* line is fully visible */ }
+if (await editor.isLineVisible(500, true)) { /* line is at least partially visible */ }
+
+// Get document line number from a line element
+const lineNum = await editor.documentLineNumber(editor.lineInDOMAt(0));
+
+// Get first visible line (skips off-screen anchors)
+const firstVisible = await editor.firstVisibleLine();
 
 // Line counts - two matchers for different use cases
-await expect(editor).toHaveVisibleLineCount(50);    // DOM elements only
-await expect(editor).toHaveDocumentLineCount(1000); // true line count
+await expect(editor).toHaveDOMLineCount(50);        // Lines in DOM (may include anchors)
+await expect(editor).toHaveDocumentLineCount(1000); // True document line count
 
 // Scroll operations (on .cm-scroller)
 await editor.scrollTo({ scrollTop: 200 });                    // waits by default
 await editor.scrollTo({ scrollTop: 200 }, { waitForIdle: false }); // immediate return
 await editor.scrollBy({ scrollTop: 100 });
-await editor.scrollLineIntoView(50);
+await editor.scrollToLine(50);                                // scroll to line at top
+await editor.scrollToLine(50, { position: 'center' });        // scroll to line centered
+await editor.scrollToLine(50, { position: 'bottom' });        // scroll to line at bottom
+await editor.scrollToLine(50, { position: 0.25 });            // scroll to line at 25% from top
 await editor.waitForScrollIdle();                             // explicit wait
 const pos = await editor.scrollPosition();
 const dims = await editor.scrollDimensions();
@@ -49,16 +70,24 @@ await expect(editor).toBeScrollableHorizontally();
 ## Virtual Rendering
 
 CodeMirror 6 uses virtual rendering for large files - only visible lines exist in the DOM.
-This affects several APIs:
+Additionally, CodeMirror keeps anchor lines (like line 1) in the DOM with `.cm-gap` spacers
+for scroll position stability.
+
+**This means `linesInDOM` may NOT be contiguous** - after scrolling to line 500, you might
+have line 1 (anchor), a gap, then lines 480-520 (viewport).
 
 | API | Behavior |
 |-----|----------|
-| `lines.count()` | Returns visible DOM elements only |
-| `materializedLine(n)` | Only works for lines in DOM |
-| `materializedLineContaining(text)` | Only searches lines in DOM |
-| `toHaveVisibleLineCount()` | Counts visible lines only |
+| `linesInDOM` | All `.cm-line` elements in DOM (may include off-screen anchors) |
+| `lineInDOMAt(n)` | 0-based DOM index - may return an off-screen anchor! |
+| `lineInDOMContaining(text)` | Searches all lines in DOM (including anchors) |
+| `toHaveDOMLineCount()` | Counts all lines in DOM |
 | `toHaveDocumentLineCount()` | Returns true line count (uses CM6 internals) |
-| `lineVisible(n)` | Scrolls line into view, then returns locator |
+| `linesInViewport()` | Query visible lines only (no side effects) |
+| `firstVisibleLine()` | Get first actually-visible line (skips anchors) |
+| `scrollToLineAndLocate(n)` | Scrolls line into view, then returns locator |
+| `isLineRendered(n)` | Check if line has a visible gutter entry |
+| `isLineVisible(n)` | Check if line is visible in viewport |
 
 ## Extension Support
 
@@ -132,16 +161,21 @@ editor.getRegistry().register('custom', { marker: 'cm-custom' });
 | `scroller` | `.cm-scroller` | Scroll container |
 | `content` | `.cm-content` | Content area |
 | `gutters` | `.cm-gutters` | Gutter container |
-| `lines` | `.cm-line` | All materialized line elements |
+| `linesInDOM` | `.cm-line` | All line elements in DOM (may be non-contiguous!) |
 
 ### Line Methods
 
 | Method | Description |
 |--------|-------------|
-| `materializedLine(n)` | Get materialized line by 1-based number (DOM only) |
-| `materializedLineContaining(text)` | Find materialized line with text/regex |
-| `lineVisible(n)` | Scroll line into view and return locator |
+| `lineInDOMAt(n)` | Get line by 0-based DOM index (may be off-screen anchor) |
+| `lineInDOMContaining(text)` | Find line in DOM with text/regex |
+| `firstVisibleLine()` | Get first actually-visible line (async) |
+| `scrollToLineAndLocate(n, opts?)` | Scroll line into view and return locator |
 | `documentLineCount()` | Get true line count (uses CM6 internals) |
+| `documentLineNumber(locator)` | Get 1-based line number for a line element |
+| `linesInViewport()` | Get visible line ranges (no side effects) |
+| `isLineRendered(n)` | Check if line has gutter entry (no side effects) |
+| `isLineVisible(n, partial?)` | Check if line is visible (no side effects) |
 
 ### Scroll Methods
 
@@ -151,15 +185,41 @@ editor.getRegistry().register('custom', { marker: 'cm-custom' });
 | `scrollDimensions()` | Get scroll dimensions |
 | `scrollTo(pos, opts?)` | Set scroll position (`waitForIdle` default true) |
 | `scrollBy(delta)` | Scroll by relative amount |
-| `scrollLineIntoView(n)` | Scroll line into view (uses CM6 geometry) |
+| `scrollToLine(n, opts?)` | Scroll line into view with position control |
 | `waitForScrollIdle()` | Wait for scroll animation to complete |
+
+### scrollToLine Position Options
+
+```typescript
+await editor.scrollToLine(50);                         // Line at top (default)
+await editor.scrollToLine(50, { position: 'top' });    // Line at top edge
+await editor.scrollToLine(50, { position: 'center' }); // Line centered
+await editor.scrollToLine(50, { position: 'bottom' }); // Line at bottom edge
+await editor.scrollToLine(50, { position: 0.25 });     // Line at 25% from top
+```
+
+### ViewportLineInfo Type
+
+```typescript
+interface LineRange {
+  first: number;  // 1-based line number
+  last: number;   // 1-based line number
+}
+
+interface ViewportLineInfo {
+  fullyVisible: LineRange[];      // Lines entirely in viewport
+  partiallyVisible: LineRange[];  // Lines with any portion visible
+}
+```
+
+Arrays are used because code folding can create non-contiguous visible regions.
 
 ### Custom Matchers
 
 | Matcher | Description |
 |---------|-------------|
 | `toHaveScrollPosition(pos, opts?)` | Assert scroll position (with tolerance, timeout) |
-| `toHaveVisibleLineCount(n, opts?)` | Assert visible DOM line count |
+| `toHaveDOMLineCount(n, opts?)` | Assert lines in DOM (includes anchors) |
 | `toHaveDocumentLineCount(n, opts?)` | Assert true document line count |
 | `toBeScrollableVertically(opts?)` | Assert vertical scrollability |
 | `toBeScrollableHorizontally(opts?)` | Assert horizontal scrollability |

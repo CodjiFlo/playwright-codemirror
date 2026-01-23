@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-alpha] - 2026-01-22
+
+### Added
+
+- **`linesInViewport()` method** - Query which lines are visible in viewport (no side effects), returns `ViewportLineInfo` with `fullyVisible` and `partiallyVisible` ranges
+- **`isLineRendered(n)` method** - Check if a line is rendered in DOM (no side effects)
+- **`isLineVisible(n, partial?)` method** - Check if a line is visible in viewport (no side effects)
+- **`documentLineNumber(locator)` method** - Get 1-based document line number for a line element
+- **`firstVisibleLine()` method** - Get first actually-visible line (skips anchor lines)
+- **`scrollToLine()` position options** - Control where line appears: `'top'`, `'center'`, `'bottom'`, or numeric 0-1
+- **`LineRange` type** - Range of line numbers with `first` and `last` properties
+- **`ViewportLineInfo` type** - Viewport line information with `fullyVisible` and `partiallyVisible` arrays
+- **`ScrollLinePosition` type** - Position option for `scrollToLine()`
+- **`ScrollToLineOptions` type** - Options for `scrollToLine()` including `position` and `waitForIdle`
+
+### Changed
+
+- **Renamed `lines` to `linesInDOM`** - Clarifies these are DOM elements (may include off-screen anchor lines)
+- **Renamed `materializedLine(n)` to `lineInDOMAt(n)`** - Clarifies it's a DOM index, not document line number
+- **Renamed `materializedLineContaining()` to `lineInDOMContaining()`** - Consistent naming
+- **Renamed `lineVisible()` to `scrollToLineAndLocate()`** - Name reveals side effect (scrolls before returning)
+- **Renamed `scrollLineIntoView()` to `scrollToLine()`** - Simpler name
+- **Renamed `toHaveVisibleLineCount()` to `toHaveDOMLineCount()`** - Consistent with `linesInDOM`
+- **Documentation notes about virtual rendering** - `linesInDOM` may NOT be contiguous (CodeMirror keeps anchor lines like line 1 in DOM with `.cm-gap` spacers)
+
+### Breaking Changes
+
+- `lines` renamed to `linesInDOM`
+- `materializedLine(n)` renamed to `lineInDOMAt(n)` and is now **0-indexed** (was 1-indexed)
+- `materializedLineContaining()` renamed to `lineInDOMContaining()`
+- `lineVisible()` renamed to `scrollToLineAndLocate()`
+- `scrollLineIntoView()` renamed to `scrollToLine()`
+- `toHaveVisibleLineCount()` renamed to `toHaveDOMLineCount()`
+
 ## [0.1.1-alpha] - 2026-01-22
 
 ### Changed
@@ -60,6 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial alpha release with basic CodeMirror 6 testing helpers.
 
+[0.2.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.1.1-alpha...v0.2.0-alpha
 [0.1.1-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.1.0-alpha...v0.1.1-alpha
 [0.1.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.0.7-alpha...v0.1.0-alpha
 [0.0.7-alpha]: https://github.com/CodjiFlo/playwright-codemirror/releases/tag/v0.0.7-alpha

@@ -94,27 +94,28 @@ export const expect = baseExpect.extend({
   },
 
   /**
-   * Assert that the editor has a specific number of visible lines in the DOM.
+   * Assert that the editor has a specific number of lines in the DOM.
    *
-   * ⚠️ Due to CodeMirror's virtual rendering, this only counts lines currently
-   * in the DOM. For large files (500+ lines), use toHaveDocumentLineCount()
-   * to get the true total.
+   * ⚠️ Due to CodeMirror's virtual rendering:
+   * - This only counts lines currently in the DOM, not all document lines
+   * - Lines may include off-screen anchors (like line 1 kept for scroll stability)
+   * - For true document line count, use toHaveDocumentLineCount()
    *
    * @param editor - CMEditor instance
-   * @param expected - Expected number of visible lines
+   * @param expected - Expected number of lines in DOM
    * @param options - Assertion options (timeout)
    *
    * @example
    * ```typescript
-   * await expect(editor).toHaveVisibleLineCount(50);
+   * await expect(editor).toHaveDOMLineCount(50);
    * ```
    */
-  async toHaveVisibleLineCount(
+  async toHaveDOMLineCount(
     editor: CMEditor,
     expected: number,
     options: LineCountAssertionOptions = {}
   ) {
-    const assertionName = 'toHaveVisibleLineCount';
+    const assertionName = 'toHaveDOMLineCount';
     const timeout = options.timeout ?? 5000;
 
     let lastActual: number | undefined;
@@ -125,17 +126,17 @@ export const expect = baseExpect.extend({
       await baseExpect
         .poll(
           async () => {
-            lastActual = await editor.lines.count();
+            lastActual = await editor.linesInDOM.count();
             return lastActual;
           },
           { timeout }
         )
         .toBe(expected);
 
-      message = `Expected visible line count NOT to be ${expected}`;
+      message = `Expected DOM line count NOT to be ${expected}`;
     } catch {
       pass = false;
-      message = `Expected visible line count: ${expected}\nReceived: ${lastActual}`;
+      message = `Expected DOM line count: ${expected}\nReceived: ${lastActual}`;
     }
 
     return {

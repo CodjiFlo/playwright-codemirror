@@ -45,6 +45,48 @@ export interface ScrollDimensions {
 }
 
 /**
+ * A contiguous range of line numbers (1-based)
+ */
+export interface LineRange {
+  first: number; // 1-based line number
+  last: number; // 1-based line number
+}
+
+/**
+ * Information about which lines are visible in the viewport.
+ * Arrays are used because code folding can create non-contiguous visible regions.
+ */
+export interface ViewportLineInfo {
+  /** Lines entirely within the viewport (array for folded regions) */
+  fullyVisible: LineRange[];
+  /** Lines with any portion in the viewport (array for folded regions) */
+  partiallyVisible: LineRange[];
+}
+
+/**
+ * Position for scrollToLine - where to place the target line in viewport.
+ * - 'top' or 0: line at top edge
+ * - 'center' or 0.5: line vertically centered
+ * - 'bottom' or 1: line at bottom edge
+ * - Any number 0-1 for fine control (e.g., 0.33 for top third)
+ */
+export type ScrollLinePosition = 'top' | 'center' | 'bottom' | number;
+
+/**
+ * Options for scrollToLine method
+ */
+export interface ScrollToLineOptions {
+  /**
+   * Where to position the line in the viewport (default: 'top')
+   */
+  position?: ScrollLinePosition;
+  /**
+   * Whether to wait for scroll to settle before returning (default: true)
+   */
+  waitForIdle?: boolean;
+}
+
+/**
  * Options for scroll position assertions
  */
 export interface ScrollAssertionOptions {
@@ -122,13 +164,14 @@ export interface CMEditorMatchers {
   ): Promise<void>;
 
   /**
-   * Assert that the editor has a specific number of visible lines in the DOM.
+   * Assert that the editor has a specific number of lines in the DOM.
    *
-   * ⚠️ Due to CodeMirror's virtual rendering, this only counts lines currently
-   * in the DOM. For large files (500+ lines), use toHaveDocumentLineCount()
-   * to get the true total.
+   * ⚠️ Due to CodeMirror's virtual rendering:
+   * - This only counts lines currently in the DOM, not all document lines
+   * - Lines may include off-screen anchors (like line 1 kept for scroll stability)
+   * - For true document line count, use toHaveDocumentLineCount()
    */
-  toHaveVisibleLineCount(
+  toHaveDOMLineCount(
     expected: number,
     options?: LineCountAssertionOptions
   ): Promise<void>;
