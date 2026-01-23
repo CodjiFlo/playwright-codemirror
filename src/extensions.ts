@@ -1,11 +1,21 @@
 import type { ExtensionDefinition, ExtensionRegistry } from './types.js';
 
 /**
- * Global registry for CodeMirror extension class mappings.
+ * Registry for CodeMirror extension class mappings.
  * Extensions allow you to define custom CSS class names for project-specific
  * CodeMirror decorations (like diff highlighting, gutter markers, etc.)
+ *
+ * Can be used as a global singleton or as an isolated instance for parallel test safety.
+ *
+ * @example
+ * ```typescript
+ * // Isolated registry for parallel tests
+ * const registry = new ExtensionRegistryManager();
+ * registry.register('diff', { lineAddition: 'cm-diff-line-addition' });
+ * const editor = CMEditor.from(page, { registry });
+ * ```
  */
-class ExtensionRegistryManager {
+export class ExtensionRegistryManager {
   private registry: ExtensionRegistry = {};
 
   /**

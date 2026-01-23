@@ -1,5 +1,10 @@
 import { expect as baseExpect } from '@playwright/test';
-import type { PartialScrollPosition, ScrollAssertionOptions } from './types.js';
+import type {
+  LineCountAssertionOptions,
+  PartialScrollPosition,
+  ScrollabilityAssertionOptions,
+  ScrollAssertionOptions,
+} from './types.js';
 import { CMEditor } from './cm-editor.js';
 
 /**
@@ -11,21 +16,23 @@ import { CMEditor } from './cm-editor.js';
  *
  * const editor = CMEditor.from(page);
  * await expect(editor).toHaveScrollPosition({ scrollTop: 0 });
- * await expect(editor).toHaveLineCount(50);
+ * await expect(editor).toHaveDocumentLineCount(100);
  * ```
  */
 export const expect = baseExpect.extend({
   /**
    * Assert that the editor has a specific scroll position.
+   * Uses retry polling to handle scroll animation timing.
    *
    * @param editor - CMEditor instance
    * @param expected - Expected scroll position (partial - only check what's specified)
-   * @param options - Assertion options (tolerance for float comparison)
+   * @param options - Assertion options (tolerance for float comparison, timeout)
    *
    * @example
    * ```typescript
    * await expect(editor).toHaveScrollPosition({ scrollTop: 200 });
    * await expect(editor).toHaveScrollPosition({ scrollTop: 200 }, { tolerance: 10 });
+   * await expect(editor).toHaveScrollPosition({ scrollTop: 200 }, { timeout: 10000 });
    * ```
    */
   async toHaveScrollPosition(
@@ -35,167 +42,259 @@ export const expect = baseExpect.extend({
   ) {
     const assertionName = 'toHaveScrollPosition';
     const tolerance = options.tolerance ?? 1;
+    const timeout = options.timeout ?? 5000;
 
+    let lastActual: { scrollTop: number; scrollLeft: number } | undefined;
     let pass = true;
-    let actual: { scrollTop: number; scrollLeft: number } | undefined;
     let message: string;
 
     try {
-      actual = await editor.scrollPosition();
+      await baseExpect
+        .poll(
+          async () => {
+            lastActual = await editor.scrollPosition();
+            let matches = true;
 
-      if (expected.scrollTop !== undefined) {
-        const diff = Math.abs(actual.scrollTop - expected.scrollTop);
-        if (diff > tolerance) {
-          pass = false;
-        }
-      }
+            if (expected.scrollTop !== undefined) {
+              const diff = Math.abs(lastActual.scrollTop - expected.scrollTop);
+              if (diff > tolerance) {
+                matches = false;
+              }
+            }
 
-      if (expected.scrollLeft !== undefined) {
-        const diff = Math.abs(actual.scrollLeft - expected.scrollLeft);
-        if (diff > tolerance) {
-          pass = false;
-        }
-      }
+            if (expected.scrollLeft !== undefined) {
+              const diff = Math.abs(lastActual.scrollLeft - expected.scrollLeft);
+              if (diff > tolerance) {
+                matches = false;
+              }
+            }
 
-      if (pass) {
-        message = `Expected scroll position NOT to be ${JSON.stringify(expected)}`;
-      } else {
-        message =
-          `Expected scroll position: ${JSON.stringify(expected)}\n` +
-          `Received: ${JSON.stringify(actual)}\n` +
-          `Tolerance: ${tolerance}`;
-      }
-    } catch (error) {
+            return matches;
+          },
+          { timeout }
+        )
+        .toBe(true);
+
+      message = `Expected scroll position NOT to be ${JSON.stringify(expected)}`;
+    } catch {
       pass = false;
-      message = `Failed to get scroll position: ${error}`;
+      message =
+        `Expected scroll position: ${JSON.stringify(expected)}\n` +
+        `Received: ${JSON.stringify(lastActual)}\n` +
+        `Tolerance: ${tolerance}`;
     }
 
     return {
       name: assertionName,
       pass,
       message: () => message,
-      actual,
+      actual: lastActual,
       expected,
     };
   },
 
   /**
-   * Assert that the editor has a specific number of lines.
+   * Assert that the editor has a specific number of visible lines in the DOM.
+   *
+   * ⚠️ Due to CodeMirror's virtual rendering, this only counts lines currently
+   * in the DOM. For large files (500+ lines), use toHaveDocumentLineCount()
+   * to get the true total.
    *
    * @param editor - CMEditor instance
-   * @param expected - Expected number of lines
+   * @param expected - Expected number of visible lines
+   * @param options - Assertion options (timeout)
    *
    * @example
    * ```typescript
-   * await expect(editor).toHaveLineCount(50);
+   * await expect(editor).toHaveVisibleLineCount(50);
    * ```
    */
-  async toHaveLineCount(editor: CMEditor, expected: number) {
-    const assertionName = 'toHaveLineCount';
+  async toHaveVisibleLineCount(
+    editor: CMEditor,
+    expected: number,
+    options: LineCountAssertionOptions = {}
+  ) {
+    const assertionName = 'toHaveVisibleLineCount';
+    const timeout = options.timeout ?? 5000;
 
-    let actual: number | undefined;
-    let pass = false;
+    let lastActual: number | undefined;
+    let pass = true;
     let message: string;
 
     try {
-      actual = await editor.lines.count();
-      pass = actual === expected;
+      await baseExpect
+        .poll(
+          async () => {
+            lastActual = await editor.lines.count();
+            return lastActual;
+          },
+          { timeout }
+        )
+        .toBe(expected);
 
-      if (pass) {
-        message = `Expected line count NOT to be ${expected}`;
-      } else {
-        message = `Expected line count: ${expected}\nReceived: ${actual}`;
-      }
-    } catch (error) {
-      message = `Failed to count lines: ${error}`;
+      message = `Expected visible line count NOT to be ${expected}`;
+    } catch {
+      pass = false;
+      message = `Expected visible line count: ${expected}\nReceived: ${lastActual}`;
     }
 
     return {
       name: assertionName,
       pass,
       message: () => message,
-      actual,
+      actual: lastActual,
+      expected,
+    };
+  },
+
+  /**
+   * Assert that the editor document has a specific number of lines.
+   * Uses CodeMirror's internal state for accurate count regardless of virtual rendering.
+   *
+   * @param editor - CMEditor instance
+   * @param expected - Expected total number of lines
+   * @param options - Assertion options (timeout)
+   *
+   * @example
+   * ```typescript
+   * await expect(editor).toHaveDocumentLineCount(1000);
+   * ```
+   */
+  async toHaveDocumentLineCount(
+    editor: CMEditor,
+    expected: number,
+    options: LineCountAssertionOptions = {}
+  ) {
+    const assertionName = 'toHaveDocumentLineCount';
+    const timeout = options.timeout ?? 5000;
+
+    let lastActual: number | undefined;
+    let pass = true;
+    let message: string;
+
+    try {
+      await baseExpect
+        .poll(
+          async () => {
+            lastActual = await editor.documentLineCount();
+            return lastActual;
+          },
+          { timeout }
+        )
+        .toBe(expected);
+
+      message = `Expected document line count NOT to be ${expected}`;
+    } catch {
+      pass = false;
+      message = `Expected document line count: ${expected}\nReceived: ${lastActual}`;
+    }
+
+    return {
+      name: assertionName,
+      pass,
+      message: () => message,
+      actual: lastActual,
       expected,
     };
   },
 
   /**
    * Assert that the editor is scrollable horizontally.
+   * Uses retry polling to handle layout timing.
    *
    * @param editor - CMEditor instance
+   * @param options - Assertion options (timeout)
    *
    * @example
    * ```typescript
    * await expect(editor).toBeScrollableHorizontally();
    * ```
    */
-  async toBeScrollableHorizontally(editor: CMEditor) {
+  async toBeScrollableHorizontally(
+    editor: CMEditor,
+    options: ScrollabilityAssertionOptions = {}
+  ) {
     const assertionName = 'toBeScrollableHorizontally';
+    const timeout = options.timeout ?? 5000;
 
-    let dims: { scrollWidth: number; clientWidth: number } | undefined;
-    let pass = false;
+    let lastDims: { scrollWidth: number; clientWidth: number } | undefined;
+    let pass = true;
     let message: string;
 
     try {
-      dims = await editor.scrollDimensions();
-      pass = dims.scrollWidth > dims.clientWidth;
+      await baseExpect
+        .poll(
+          async () => {
+            lastDims = await editor.scrollDimensions();
+            return lastDims.scrollWidth > lastDims.clientWidth;
+          },
+          { timeout }
+        )
+        .toBe(true);
 
-      if (pass) {
-        message = `Expected editor NOT to be scrollable horizontally`;
-      } else {
-        message =
-          `Expected editor to be scrollable horizontally\n` +
-          `scrollWidth: ${dims.scrollWidth}, clientWidth: ${dims.clientWidth}`;
-      }
-    } catch (error) {
-      message = `Failed to get scroll dimensions: ${error}`;
+      message = `Expected editor NOT to be scrollable horizontally`;
+    } catch {
+      pass = false;
+      message =
+        `Expected editor to be scrollable horizontally\n` +
+        `scrollWidth: ${lastDims?.scrollWidth}, clientWidth: ${lastDims?.clientWidth}`;
     }
 
     return {
       name: assertionName,
       pass,
       message: () => message,
-      actual: dims,
+      actual: lastDims,
     };
   },
 
   /**
    * Assert that the editor is scrollable vertically.
+   * Uses retry polling to handle layout timing.
    *
    * @param editor - CMEditor instance
+   * @param options - Assertion options (timeout)
    *
    * @example
    * ```typescript
    * await expect(editor).toBeScrollableVertically();
    * ```
    */
-  async toBeScrollableVertically(editor: CMEditor) {
+  async toBeScrollableVertically(
+    editor: CMEditor,
+    options: ScrollabilityAssertionOptions = {}
+  ) {
     const assertionName = 'toBeScrollableVertically';
+    const timeout = options.timeout ?? 5000;
 
-    let dims: { scrollHeight: number; clientHeight: number } | undefined;
-    let pass = false;
+    let lastDims: { scrollHeight: number; clientHeight: number } | undefined;
+    let pass = true;
     let message: string;
 
     try {
-      dims = await editor.scrollDimensions();
-      pass = dims.scrollHeight > dims.clientHeight;
+      await baseExpect
+        .poll(
+          async () => {
+            lastDims = await editor.scrollDimensions();
+            return lastDims.scrollHeight > lastDims.clientHeight;
+          },
+          { timeout }
+        )
+        .toBe(true);
 
-      if (pass) {
-        message = `Expected editor NOT to be scrollable vertically`;
-      } else {
-        message =
-          `Expected editor to be scrollable vertically\n` +
-          `scrollHeight: ${dims.scrollHeight}, clientHeight: ${dims.clientHeight}`;
-      }
-    } catch (error) {
-      message = `Failed to get scroll dimensions: ${error}`;
+      message = `Expected editor NOT to be scrollable vertically`;
+    } catch {
+      pass = false;
+      message =
+        `Expected editor to be scrollable vertically\n` +
+        `scrollHeight: ${lastDims?.scrollHeight}, clientHeight: ${lastDims?.clientHeight}`;
     }
 
     return {
       name: assertionName,
       pass,
       message: () => message,
-      actual: dims,
+      actual: lastDims,
     };
   },
 });

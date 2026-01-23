@@ -1,5 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 
+import type { ExtensionRegistryManager } from './extensions.js';
+
 /**
  * Options for creating a CMEditor locator
  */
@@ -9,6 +11,11 @@ export interface CMEditorOptions {
    * @default 0
    */
   nth?: number;
+  /**
+   * Custom extension registry for test isolation (default: global registry)
+   * Use a separate registry to avoid interference in parallel tests.
+   */
+  registry?: ExtensionRegistryManager;
 }
 
 /**
@@ -46,6 +53,40 @@ export interface ScrollAssertionOptions {
    * Accounts for floating point precision and sub-pixel rendering
    */
   tolerance?: number;
+  /**
+   * Timeout in milliseconds for retry polling (default: 5000)
+   */
+  timeout?: number;
+}
+
+/**
+ * Options for line count assertions
+ */
+export interface LineCountAssertionOptions {
+  /**
+   * Timeout in milliseconds for retry polling (default: 5000)
+   */
+  timeout?: number;
+}
+
+/**
+ * Options for scrollability assertions
+ */
+export interface ScrollabilityAssertionOptions {
+  /**
+   * Timeout in milliseconds for retry polling (default: 5000)
+   */
+  timeout?: number;
+}
+
+/**
+ * Options for scrollTo method
+ */
+export interface ScrollToOptions {
+  /**
+   * Whether to wait for scroll to settle before returning (default: true)
+   */
+  waitForIdle?: boolean;
 }
 
 /**
@@ -72,7 +113,8 @@ export type CMEditorSource = Page | Locator;
  */
 export interface CMEditorMatchers {
   /**
-   * Assert that the editor has a specific scroll position
+   * Assert that the editor has a specific scroll position.
+   * Uses retry polling to handle scroll animation timing.
    */
   toHaveScrollPosition(
     expected: PartialScrollPosition,
@@ -80,17 +122,35 @@ export interface CMEditorMatchers {
   ): Promise<void>;
 
   /**
-   * Assert that the editor has a specific number of lines
+   * Assert that the editor has a specific number of visible lines in the DOM.
+   *
+   * ⚠️ Due to CodeMirror's virtual rendering, this only counts lines currently
+   * in the DOM. For large files (500+ lines), use toHaveDocumentLineCount()
+   * to get the true total.
    */
-  toHaveLineCount(expected: number): Promise<void>;
+  toHaveVisibleLineCount(
+    expected: number,
+    options?: LineCountAssertionOptions
+  ): Promise<void>;
 
   /**
-   * Assert that the editor is scrollable horizontally
+   * Assert that the editor document has a specific number of lines.
+   * Uses CodeMirror's internal state for accurate count regardless of virtual rendering.
    */
-  toBeScrollableHorizontally(): Promise<void>;
+  toHaveDocumentLineCount(
+    expected: number,
+    options?: LineCountAssertionOptions
+  ): Promise<void>;
 
   /**
-   * Assert that the editor is scrollable vertically
+   * Assert that the editor is scrollable horizontally.
+   * Uses retry polling to handle layout timing.
    */
-  toBeScrollableVertically(): Promise<void>;
+  toBeScrollableHorizontally(options?: ScrollabilityAssertionOptions): Promise<void>;
+
+  /**
+   * Assert that the editor is scrollable vertically.
+   * Uses retry polling to handle layout timing.
+   */
+  toBeScrollableVertically(options?: ScrollabilityAssertionOptions): Promise<void>;
 }

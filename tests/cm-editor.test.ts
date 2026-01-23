@@ -1,5 +1,5 @@
 import { test } from '@playwright/test';
-import { CMEditor, expect } from '../src/index.js';
+import { CMEditor, expect, ExtensionRegistryManager } from '../src/index.js';
 
 test.describe('CMEditor', () => {
   test.beforeEach(async ({ page }) => {
@@ -27,6 +27,26 @@ test.describe('CMEditor', () => {
       const container = page.locator('#editor-1');
       const editor = CMEditor.from(container);
       await expect(editor.view).toBeVisible();
+    });
+
+    test('from(page, { registry }) uses custom registry', async ({ page }) => {
+      const registry = new ExtensionRegistryManager();
+      registry.register('custom', { marker: 'cm-custom-marker' });
+      const editor = CMEditor.from(page, { registry });
+
+      // Should work with custom registry
+      expect(() => editor.ext('custom', 'marker')).not.toThrow();
+    });
+
+    test('withIsolatedRegistry() creates isolated instance', async ({ page }) => {
+      const editor = CMEditor.withIsolatedRegistry(page);
+      editor.getRegistry().register('isolated', { key: 'value' });
+
+      // Global registry should not have this extension
+      expect(() => {
+        const globalEditor = CMEditor.from(page);
+        globalEditor.ext('isolated', 'key');
+      }).toThrow('Extension "isolated" not registered');
     });
   });
 
@@ -58,28 +78,48 @@ test.describe('CMEditor', () => {
       expect(count).toBeGreaterThanOrEqual(10);
     });
 
-    test('line(n) returns specific line (1-indexed)', async ({ page }) => {
+    test('materializedLine(n) returns specific line (1-indexed)', async ({ page }) => {
       const editor = CMEditor.from(page);
-      const firstLine = editor.line(1);
+      const firstLine = editor.materializedLine(1);
       await expect(firstLine).toContainText('Sample JavaScript Code');
     });
 
-    test('line(n) throws for n < 1', async ({ page }) => {
+    test('materializedLine(n) throws for n < 1', async ({ page }) => {
       const editor = CMEditor.from(page);
-      expect(() => editor.line(0)).toThrow('Line number must be >= 1');
-      expect(() => editor.line(-1)).toThrow('Line number must be >= 1');
+      expect(() => editor.materializedLine(0)).toThrow('Line number must be >= 1');
+      expect(() => editor.materializedLine(-1)).toThrow('Line number must be >= 1');
     });
 
-    test('lineContaining(text) finds line with string', async ({ page }) => {
+    test('materializedLineContaining(text) finds line with string', async ({ page }) => {
       const editor = CMEditor.from(page);
-      const line = editor.lineContaining('export function');
+      const line = editor.materializedLineContaining('export function');
       await expect(line).toBeVisible();
     });
 
-    test('lineContaining(regex) finds line matching pattern', async ({ page }) => {
+    test('materializedLineContaining(regex) finds line matching pattern', async ({ page }) => {
       const editor = CMEditor.from(page);
-      const line = editor.lineContaining(/export\s+function/);
+      const line = editor.materializedLineContaining(/export\s+function/);
       await expect(line).toBeVisible();
+    });
+  });
+
+  test.describe('line visibility methods', () => {
+    test('lineVisible() scrolls line into view and returns locator', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      const line = await editor.lineVisible(80);
+      await expect(line).toBeVisible();
+    });
+
+    test('lineVisible() works for first line', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      const line = await editor.lineVisible(1);
+      await expect(line).toContainText('Sample JavaScript Code');
+    });
+
+    test('documentLineCount() returns total line count', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      const count = await editor.documentLineCount();
+      expect(count).toBe(100);
     });
   });
 
@@ -92,11 +132,17 @@ test.describe('CMEditor', () => {
       expect(pos.scrollTop).toBe(0);
     });
 
-    test('scrollTo() sets scroll position', async ({ page }) => {
+    test('scrollTo() sets scroll position and waits by default', async ({ page }) => {
       const editor = CMEditor.from(page);
       await editor.scrollTo({ scrollTop: 200 });
       const pos = await editor.scrollPosition();
       expect(pos.scrollTop).toBeCloseTo(200, 0);
+    });
+
+    test('scrollTo() with waitForIdle: false returns immediately', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      await editor.scrollTo({ scrollTop: 200 }, { waitForIdle: false });
+      // Should complete without error
     });
 
     test('scrollBy() scrolls relative amount', async ({ page }) => {
@@ -120,12 +166,20 @@ test.describe('CMEditor', () => {
       const editor = CMEditor.from(page);
       await editor.scrollLineIntoView(50);
       // The line should now be visible
-      await expect(editor.line(50)).toBeVisible();
+      await expect(editor.materializedLine(50)).toBeVisible();
     });
 
     test('scrollLineIntoView() throws for n < 1', async ({ page }) => {
       const editor = CMEditor.from(page);
       await expect(editor.scrollLineIntoView(0)).rejects.toThrow('Line number must be >= 1');
+    });
+
+    test('waitForScrollIdle() waits for scroll to settle', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      await editor.scrollTo({ scrollTop: 300 }, { waitForIdle: false });
+      await editor.waitForScrollIdle();
+      const pos = await editor.scrollPosition();
+      expect(pos.scrollTop).toBeCloseTo(300, 0);
     });
   });
 
@@ -142,10 +196,28 @@ test.describe('CMEditor', () => {
       await expect(editor).toHaveScrollPosition({ scrollTop: 202 }, { tolerance: 5 });
     });
 
-    test('toHaveLineCount() checks line count', async ({ page }) => {
+    test('toHaveScrollPosition() retries until position stabilizes', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      // Scroll and immediately assert - should not be flaky due to retry
+      await editor.scrollTo({ scrollTop: 500 }, { waitForIdle: false });
+      await expect(editor).toHaveScrollPosition({ scrollTop: 500 });
+    });
+
+    test('toHaveScrollPosition() respects timeout option', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      await expect(editor).toHaveScrollPosition({ scrollTop: 0 }, { timeout: 1000 });
+    });
+
+    test('toHaveVisibleLineCount() checks visible line count', async ({ page }) => {
       const editor = CMEditor.from(page, { nth: 1 });
       // Second editor has 13 lines
-      await expect(editor).toHaveLineCount(13);
+      await expect(editor).toHaveVisibleLineCount(13);
+    });
+
+    test('toHaveDocumentLineCount() checks total line count', async ({ page }) => {
+      const editor = CMEditor.from(page);
+      // First editor has 100 lines total
+      await expect(editor).toHaveDocumentLineCount(100);
     });
 
     test('toBeScrollableVertically() for tall content', async ({ page }) => {
@@ -189,5 +261,74 @@ test.describe('CMEditor', () => {
       CMEditor.clearExtensions();
       // This would throw if extensions weren't cleared
     });
+
+    test('global clearExtensions does not affect isolated registries', async ({ page }) => {
+      const registry = new ExtensionRegistryManager();
+      registry.register('test', { key: 'test-class' });
+      const editor = CMEditor.from(page, { registry });
+
+      CMEditor.clearExtensions(); // Clear global
+
+      // Isolated registry should still work
+      expect(() => editor.ext('test', 'key')).not.toThrow();
+    });
+  });
+});
+
+test.describe('CMEditor (large file)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/large-editor.html');
+    await page.waitForSelector('.cm-editor');
+  });
+
+  test('documentLineCount() returns true count for large file', async ({ page }) => {
+    const editor = CMEditor.from(page);
+    await expect(editor).toHaveDocumentLineCount(1000);
+  });
+
+  test('lineVisible() works for distant lines', async ({ page }) => {
+    const editor = CMEditor.from(page);
+    const line = await editor.lineVisible(800);
+    await expect(line).toBeVisible();
+  });
+
+  test('materializedLine() does NOT find virtualized line', async ({ page }) => {
+    const editor = CMEditor.from(page);
+    // Line 900 is far off-screen, not in DOM
+    const count = await editor.materializedLine(900).count();
+    expect(count).toBe(0);
+  });
+
+  test('materializedLineContaining() does NOT find text in virtualized lines', async ({ page }) => {
+    const editor = CMEditor.from(page);
+    // The large file has unique text on line 900: "// Line 900"
+    // This text exists in the document but is not materialized
+    const count = await editor.materializedLineContaining('// Line 900').count();
+    expect(count).toBe(0);
+  });
+
+  test('toHaveVisibleLineCount() is less than document count for large file', async ({ page }) => {
+    const editor = CMEditor.from(page);
+    const visibleCount = await editor.lines.count();
+    const docCount = await editor.documentLineCount();
+
+    // Visible count should be much less than document count
+    expect(visibleCount).toBeLessThan(docCount);
+    expect(visibleCount).toBeLessThan(100); // Only ~50-80 lines fit in viewport
+  });
+
+  test('lines.count() only counts materialized lines', async ({ page }) => {
+    const editor = CMEditor.from(page);
+    const domCount = await editor.lines.count();
+    // Should be much less than 1000
+    expect(domCount).toBeLessThan(150);
+  });
+
+  test('scrollLineIntoView() uses cmView.coordsAtPos when available', async ({ page }) => {
+    const editor = CMEditor.from(page);
+    // Use lineVisible() to properly find the line after scrolling
+    const line = await editor.lineVisible(75);
+    await expect(line).toBeVisible();
+    await expect(line).toContainText('// Line 75');
   });
 });

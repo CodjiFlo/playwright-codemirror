@@ -27,6 +27,7 @@
 // Main exports
 export { CMEditor } from './cm-editor.js';
 export { expect } from './expect.js';
+export { ExtensionRegistryManager } from './extensions.js';
 
 // Types
 export type {
@@ -34,8 +35,11 @@ export type {
   CMEditorSource,
   ExtensionDefinition,
   ExtensionRegistry,
+  LineCountAssertionOptions,
   PartialScrollPosition,
+  ScrollabilityAssertionOptions,
   ScrollAssertionOptions,
   ScrollDimensions,
   ScrollPosition,
+  ScrollToOptions,
 } from './types.js';

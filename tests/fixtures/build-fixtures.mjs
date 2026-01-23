@@ -110,6 +110,10 @@ editor2.dom.querySelector('.cm-gutters')?.appendChild(diffGutter);
 
 // Expose editors for test inspection
 window.editors = { editor1, editor2 };
+
+// Store view reference on DOM elements for testing
+editor1.dom.cmView = editor1;
+editor2.dom.cmView = editor2;
 `,
     resolveDir: __dirname,
     loader: 'js',
@@ -185,3 +189,80 @@ ${bundledJS}
 
 writeFileSync(join(distDir, 'editor.html'), html);
 console.log('Built: tests/fixtures/dist/editor.html');
+
+// Build large-editor.html for virtual rendering tests
+const largeEditorResult = await build({
+  stdin: {
+    contents: `
+import { EditorState } from '@codemirror/state';
+import { EditorView, lineNumbers } from '@codemirror/view';
+
+// Generate 1000 lines for virtual rendering testing
+const largeCode = Array.from({ length: 1000 }, (_, i) => {
+  if (i === 0) return '// Large File Test - 1000 Lines';
+  if (i === 999) return '// End of file';
+  return \`// Line \${i + 1}: This is line number \${i + 1} with some content\`;
+}).join('\\n');
+
+const editor = new EditorView({
+  state: EditorState.create({
+    doc: largeCode,
+    extensions: [
+      lineNumbers(),
+      EditorView.theme({
+        '&': { fontSize: '14px' },
+        '.cm-scroller': { overflow: 'auto' }
+      })
+    ]
+  }),
+  parent: document.getElementById('editor')
+});
+
+// Expose editor for test inspection
+window.editor = editor;
+
+// Store view reference on DOM element for testing
+editor.dom.cmView = editor;
+`,
+    resolveDir: __dirname,
+    loader: 'js',
+  },
+  bundle: true,
+  format: 'iife',
+  write: false,
+  minify: false,
+});
+
+const largeEditorJS = largeEditorResult.outputFiles[0].text;
+
+const largeEditorHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Large CodeMirror Test Fixture</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: system-ui, sans-serif;
+    }
+    .editor-container {
+      border: 1px solid #ccc;
+    }
+    #editor .cm-editor {
+      height: 400px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Large File Test (1000 Lines)</h1>
+  <div id="editor" class="editor-container"></div>
+  <script>
+${largeEditorJS}
+  </script>
+</body>
+</html>`;
+
+writeFileSync(join(distDir, 'large-editor.html'), largeEditorHtml);
+console.log('Built: tests/fixtures/dist/large-editor.html');
