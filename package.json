@@ -1,6 +1,6 @@
 {
   "name": "playwright-codemirror",
-  "version": "0.0.7-alpha",
+  "version": "0.1.0-alpha",
   "description": "CodeMirror 6-tailored Playwright testing helpers with idiomatic API",
   "type": "module",
   "exports": {
