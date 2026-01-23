@@ -55,22 +55,27 @@ jobs:
             echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check changelog updated
+      - name: Extract changelog for version
+        id: changelog
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          if ! grep -q "## \[${VERSION}\]" CHANGELOG.md; then
+          # Extract section between ## [VERSION] and the next ## [ or end of file
+          CHANGELOG=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+          if [ -z "$CHANGELOG" ]; then
             echo "::error::CHANGELOG.md does not contain an entry for version ${VERSION}"
             echo "Please add a '## [${VERSION}] - YYYY-MM-DD' section to CHANGELOG.md"
             exit 1
           fi
           echo "✓ Found changelog entry for ${VERSION}"
+          # Write to file to preserve newlines
+          echo "$CHANGELOG" > changelog_body.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          body_path: changelog_body.md
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, '-') }}
 
