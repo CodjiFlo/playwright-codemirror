@@ -55,6 +55,16 @@ jobs:
             echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check changelog updated
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! grep -q "## \[${VERSION}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md does not contain an entry for version ${VERSION}"
+            echo "Please add a '## [${VERSION}] - YYYY-MM-DD' section to CHANGELOG.md"
+            exit 1
+          fi
+          echo "✓ Found changelog entry for ${VERSION}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
