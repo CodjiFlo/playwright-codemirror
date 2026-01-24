@@ -53,10 +53,10 @@ await expect(editor).toHaveDocumentLineCount(1000); // True document line count
 await editor.scrollTo({ scrollTop: 200 });                    // waits by default
 await editor.scrollTo({ scrollTop: 200 }, { waitForIdle: false }); // immediate return
 await editor.scrollBy({ scrollTop: 100 });
-await editor.scrollToLine(50);                                // scroll to line at top
+await editor.scrollToLine(50);                                // scroll to line at top (waits by default)
 await editor.scrollToLine(50, { position: 'center' });        // scroll to line centered
-await editor.scrollToLine(50, { position: 'bottom' });        // scroll to line at bottom
 await editor.scrollToLine(50, { position: 0.25 });            // scroll to line at 25% from top
+await editor.scrollToLine(50, { waitForIdle: false });        // immediate return
 await editor.waitForScrollIdle();                             // explicit wait
 const pos = await editor.scrollPosition();
 const dims = await editor.scrollDimensions();
@@ -185,17 +185,22 @@ editor.getRegistry().register('custom', { marker: 'cm-custom' });
 | `scrollDimensions()` | Get scroll dimensions |
 | `scrollTo(pos, opts?)` | Set scroll position (`waitForIdle` default true) |
 | `scrollBy(delta)` | Scroll by relative amount |
-| `scrollToLine(n, opts?)` | Scroll line into view with position control |
+| `scrollToLine(n, opts?)` | Scroll line into view (`waitForIdle` default true) |
 | `waitForScrollIdle()` | Wait for scroll animation to complete |
 
-### scrollToLine Position Options
+### scrollToLine Options
 
 ```typescript
+// Position options
 await editor.scrollToLine(50);                         // Line at top (default)
 await editor.scrollToLine(50, { position: 'top' });    // Line at top edge
 await editor.scrollToLine(50, { position: 'center' }); // Line centered
 await editor.scrollToLine(50, { position: 'bottom' }); // Line at bottom edge
 await editor.scrollToLine(50, { position: 0.25 });     // Line at 25% from top
+
+// Wait behavior (waits for scroll to finish by default)
+await editor.scrollToLine(50);                         // Waits for scroll idle
+await editor.scrollToLine(50, { waitForIdle: false }); // Returns immediately
 ```
 
 ### ViewportLineInfo Type
