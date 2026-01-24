@@ -41,11 +41,20 @@
   "devDependencies": {
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.35.0",
-    "@playwright/test": "^1.50.0",
+    "@playwright/test": "npm:@pedropaulovc/playwright-test@1.59.0-next.6",
     "codemirror": "^6.0.0",
     "esbuild": "^0.27.2",
+    "playwright": "npm:@pedropaulovc/playwright@1.59.0-next.6",
+    "playwright-core": "npm:@pedropaulovc/playwright-core@1.59.0-next.6",
     "serve": "^14.2.5",
     "tsup": "^8.0.0",
     "typescript": "^5.5.0"
+  },
+  "overrides": {
+    "@playwright/test": "npm:@pedropaulovc/playwright-test@1.59.0-next.6",
+    "playwright": "npm:@pedropaulovc/playwright@1.59.0-next.6",
+    "playwright-core": "npm:@pedropaulovc/playwright-core@1.59.0-next.6",
+    "@pedropaulovc/playwright": "npm:@pedropaulovc/playwright@1.59.0-next.6",
+    "@pedropaulovc/playwright-core": "npm:@pedropaulovc/playwright-core@1.59.0-next.6"
   }
 }
