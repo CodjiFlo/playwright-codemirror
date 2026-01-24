@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-alpha] - 2026-01-24
+
+### Changed
+
+- **Documentation** - Clarified that `scrollToLine()` waits for scroll to finish by default (`waitForIdle: true`)
+
 ## [0.2.0-alpha] - 2026-01-22
 
 ### Added
@@ -94,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial alpha release with basic CodeMirror 6 testing helpers.
 
+[0.3.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.2.0-alpha...v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.1.1-alpha...v0.2.0-alpha
 [0.1.1-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.1.0-alpha...v0.1.1-alpha
 [0.1.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.0.7-alpha...v0.1.0-alpha
