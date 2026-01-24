@@ -59,6 +59,16 @@ jobs:
             echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Verify package.json version matches tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match tag version ($VERSION)"
+            exit 1
+          fi
+          echo "✓ package.json version matches tag"
+
       - name: Extract changelog for version
         id: changelog
         run: |
