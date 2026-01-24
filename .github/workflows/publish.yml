@@ -10,6 +10,10 @@ on:
         description: 'Version to publish (e.g., 0.1.0)'
         required: true
         type: string
+      tag:
+        description: 'npm dist-tag (e.g., latest, alpha). Auto-detected if not specified.'
+        required: false
+        type: string
 
 jobs:
   test:
@@ -108,7 +112,10 @@ jobs:
       - name: Publish to npm
         run: |
           VERSION="${{ needs.release.outputs.version }}"
-          if [[ "$VERSION" == *"-"* ]]; then
+          TAG="${{ inputs.tag }}"
+          if [ -n "$TAG" ]; then
+            npm publish --access public --provenance --tag "$TAG"
+          elif [[ "$VERSION" == *"-"* ]]; then
             TAG=$(echo "$VERSION" | sed 's/.*-\([a-zA-Z]*\).*/\1/')
             npm publish --access public --provenance --tag "$TAG"
           else
