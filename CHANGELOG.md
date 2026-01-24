@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0-alpha] - 2026-01-24
+
+### Reverted
+
+- **CodeMirror 6 testing APIs** - Reverted linting, search, tooltips, brackets, and panels APIs introduced in 0.4.0-alpha (needs more testing)
+
+## [0.4.0-alpha] - 2026-01-24
+
+### Added
+
+- **Linting API** - `getLintDiagnostics()`, `getLintDiagnosticsAt()`, `getLintGutterMarker()`, `clickLintGutterMarker()`, `waitForLintIdle()` methods
+- **Search API** - `openSearchPanel()`, `closeSearchPanel()`, `searchFor()`, `getSearchMatches()`, `selectNextMatch()`, `selectPreviousMatch()`, `replaceNext()`, `replaceAll()` methods
+- **Tooltip API** - `getTooltips()`, `getTooltipAt()`, `hoverToShowTooltip()`, `waitForTooltip()`, `closeTooltip()` methods
+- **Bracket Matching API** - `getMatchingBrackets()`, `getBracketMatchAt()`, `triggerBracketMatch()` methods
+- **Panel API** - `getPanels()`, `getPanel()`, `isPanelOpen()`, `closePanel()` methods
+- **Custom matchers** - `toHaveLintDiagnostic()`, `toHaveSearchMatch()`, `toHaveOpenTooltip()`, `toHaveMatchingBrackets()`, `toHaveOpenPanel()` matchers
+
 ## [0.3.0-alpha] - 2026-01-24
 
 ### Changed
@@ -100,6 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial alpha release with basic CodeMirror 6 testing helpers.
 
+[0.5.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.4.0-alpha...v0.5.0-alpha
+[0.4.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.3.0-alpha...v0.4.0-alpha
 [0.3.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.2.0-alpha...v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.1.1-alpha...v0.2.0-alpha
 [0.1.1-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.1.0-alpha...v0.1.1-alpha
