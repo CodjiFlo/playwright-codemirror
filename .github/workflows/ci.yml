@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-slim
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +26,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Type check
         run: npm run typecheck
@@ -31,12 +35,12 @@ jobs:
         run: npm run build
 
       - name: Run tests
-        run: npm test
+        run: npx playwright test --project=${{ matrix.browser }}
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: playwright-report/
           retention-days: 7
