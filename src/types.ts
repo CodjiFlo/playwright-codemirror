@@ -2,33 +2,6 @@ import type { Locator, Page } from '@playwright/test';
 
 import type { ExtensionRegistryManager } from './extensions.js';
 
-// ============================================================
-// Linting, Search, Tooltips, Bracket Matching, Panels Types
-// ============================================================
-
-/**
- * Severity level for CodeMirror diagnostics
- */
-export type DiagnosticSeverity = 'error' | 'warning' | 'info' | 'hint';
-
-/**
- * Position of tooltips relative to the cursor/element
- */
-export type TooltipPosition = 'above' | 'below';
-
-/**
- * Position of panels in the editor
- */
-export type PanelPosition = 'top' | 'bottom';
-
-/**
- * Information about a diagnostic
- */
-export interface DiagnosticInfo {
-  severity: DiagnosticSeverity;
-  message: string;
-}
-
 /**
  * Options for creating a CMEditor locator
  */
@@ -223,50 +196,4 @@ export interface CMEditorMatchers {
    * Uses retry polling to handle layout timing.
    */
   toBeScrollableVertically(options?: ScrollabilityAssertionOptions): Promise<void>;
-
-  /**
-   * Assert that the editor has a specific number of diagnostics.
-   * Uses retry polling to handle async diagnostic updates.
-   *
-   * ⚠️ Due to CodeMirror's virtual rendering, only counts diagnostics
-   * in currently rendered lines.
-   */
-  toHaveDiagnosticCount(
-    expected: number,
-    options?: { timeout?: number }
-  ): Promise<void>;
-
-  /**
-   * Assert that the editor has a specific number of search matches.
-   * Uses retry polling to handle async search highlighting.
-   *
-   * ⚠️ Due to CodeMirror's virtual rendering, only counts matches
-   * in currently rendered lines.
-   */
-  toHaveSearchMatches(
-    expected: number,
-    options?: { timeout?: number }
-  ): Promise<void>;
-
-  /**
-   * Assert that the editor has a visible tooltip.
-   * Uses retry polling to handle tooltip show/hide timing.
-   */
-  toHaveVisibleTooltip(options?: { timeout?: number }): Promise<void>;
-
-  /**
-   * Assert that the editor has matching brackets highlighted.
-   * Uses retry polling to handle bracket match calculation.
-   */
-  toHaveBracketMatch(options?: { timeout?: number }): Promise<void>;
-
-  /**
-   * Assert that the editor has a panel open.
-   * Optionally specify position to check for panel at specific location.
-   * Uses retry polling to handle panel open/close timing.
-   */
-  toHavePanelOpen(
-    position?: PanelPosition,
-    options?: { timeout?: number }
-  ): Promise<void>;
 }
