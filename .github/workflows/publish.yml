@@ -131,3 +131,11 @@ jobs:
           else
             npm publish --access public --provenance
           fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Add dist-tag
+        if: inputs.tag
+        run: npm dist-tag add playwright-codemirror@${{ needs.release.outputs.version }} ${{ inputs.tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
