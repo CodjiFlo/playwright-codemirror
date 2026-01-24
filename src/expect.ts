@@ -1,6 +1,7 @@
 import { expect as baseExpect } from '@playwright/test';
 import type {
   LineCountAssertionOptions,
+  PanelPosition,
   PartialScrollPosition,
   ScrollabilityAssertionOptions,
   ScrollAssertionOptions,
@@ -296,6 +297,236 @@ export const expect = baseExpect.extend({
       pass,
       message: () => message,
       actual: lastDims,
+    };
+  },
+
+  /**
+   * Assert that the editor has a specific number of diagnostics (lint ranges).
+   * Uses retry polling to handle async diagnostic updates.
+   *
+   * ⚠️ Due to CodeMirror's virtual rendering, only counts diagnostics
+   * in currently rendered lines.
+   *
+   * @param editor - CMEditor instance
+   * @param expected - Expected number of diagnostics
+   * @param options - Assertion options (timeout)
+   */
+  async toHaveDiagnosticCount(
+    editor: CMEditor,
+    expected: number,
+    options: { timeout?: number } = {}
+  ) {
+    const assertionName = 'toHaveDiagnosticCount';
+    const timeout = options.timeout ?? 5000;
+
+    let lastActual: number | undefined;
+    let pass = true;
+    let message: string;
+
+    try {
+      await baseExpect
+        .poll(
+          async () => {
+            lastActual = await editor.lintRanges.count();
+            return lastActual;
+          },
+          { timeout }
+        )
+        .toBe(expected);
+
+      message = `Expected diagnostic count NOT to be ${expected}`;
+    } catch {
+      pass = false;
+      message = `Expected diagnostic count: ${expected}\nReceived: ${lastActual}`;
+    }
+
+    return {
+      name: assertionName,
+      pass,
+      message: () => message,
+      actual: lastActual,
+      expected,
+    };
+  },
+
+  /**
+   * Assert that the editor has a specific number of search matches.
+   * Uses retry polling to handle async search highlighting.
+   *
+   * ⚠️ Due to CodeMirror's virtual rendering, only counts matches
+   * in currently rendered lines.
+   *
+   * @param editor - CMEditor instance
+   * @param expected - Expected number of search matches
+   * @param options - Assertion options (timeout)
+   */
+  async toHaveSearchMatches(
+    editor: CMEditor,
+    expected: number,
+    options: { timeout?: number } = {}
+  ) {
+    const assertionName = 'toHaveSearchMatches';
+    const timeout = options.timeout ?? 5000;
+
+    let lastActual: number | undefined;
+    let pass = true;
+    let message: string;
+
+    try {
+      await baseExpect
+        .poll(
+          async () => {
+            lastActual = await editor.searchMatchCount();
+            return lastActual;
+          },
+          { timeout }
+        )
+        .toBe(expected);
+
+      message = `Expected search match count NOT to be ${expected}`;
+    } catch {
+      pass = false;
+      message = `Expected search match count: ${expected}\nReceived: ${lastActual}`;
+    }
+
+    return {
+      name: assertionName,
+      pass,
+      message: () => message,
+      actual: lastActual,
+      expected,
+    };
+  },
+
+  /**
+   * Assert that the editor has a visible tooltip.
+   * Uses retry polling to handle tooltip show/hide timing.
+   *
+   * @param editor - CMEditor instance
+   * @param options - Assertion options (timeout)
+   */
+  async toHaveVisibleTooltip(editor: CMEditor, options: { timeout?: number } = {}) {
+    const assertionName = 'toHaveVisibleTooltip';
+    const timeout = options.timeout ?? 5000;
+
+    let lastActual: number | undefined;
+    let pass = true;
+    let message: string;
+
+    try {
+      await baseExpect
+        .poll(
+          async () => {
+            lastActual = await editor.tooltipCount();
+            return lastActual > 0;
+          },
+          { timeout }
+        )
+        .toBe(true);
+
+      message = `Expected NO visible tooltip`;
+    } catch {
+      pass = false;
+      message = `Expected visible tooltip but found none (count: ${lastActual})`;
+    }
+
+    return {
+      name: assertionName,
+      pass,
+      message: () => message,
+      actual: lastActual,
+    };
+  },
+
+  /**
+   * Assert that the editor has matching brackets highlighted.
+   * Uses retry polling to handle bracket match calculation.
+   *
+   * @param editor - CMEditor instance
+   * @param options - Assertion options (timeout)
+   */
+  async toHaveBracketMatch(editor: CMEditor, options: { timeout?: number } = {}) {
+    const assertionName = 'toHaveBracketMatch';
+    const timeout = options.timeout ?? 5000;
+
+    let lastActual: number | undefined;
+    let pass = true;
+    let message: string;
+
+    try {
+      await baseExpect
+        .poll(
+          async () => {
+            lastActual = await editor.matchingBrackets.count();
+            return lastActual > 0;
+          },
+          { timeout }
+        )
+        .toBe(true);
+
+      message = `Expected NO matching brackets`;
+    } catch {
+      pass = false;
+      message = `Expected matching brackets but found none (count: ${lastActual})`;
+    }
+
+    return {
+      name: assertionName,
+      pass,
+      message: () => message,
+      actual: lastActual,
+    };
+  },
+
+  /**
+   * Assert that the editor has a panel open.
+   * Optionally specify position to check for panel at specific location.
+   * Uses retry polling to handle panel open/close timing.
+   *
+   * @param editor - CMEditor instance
+   * @param position - Optional panel position ('top' or 'bottom')
+   * @param options - Assertion options (timeout)
+   */
+  async toHavePanelOpen(
+    editor: CMEditor,
+    position?: PanelPosition,
+    options: { timeout?: number } = {}
+  ) {
+    const assertionName = 'toHavePanelOpen';
+    const timeout = options.timeout ?? 5000;
+
+    let lastActual: number | undefined;
+    let pass = true;
+    let message: string;
+
+    try {
+      await baseExpect
+        .poll(
+          async () => {
+            if (position) {
+              lastActual = await editor.panelsAt(position).count();
+            } else {
+              lastActual = await editor.panelCount();
+            }
+            return lastActual > 0;
+          },
+          { timeout }
+        )
+        .toBe(true);
+
+      const posMsg = position ? ` at ${position}` : '';
+      message = `Expected NO panel open${posMsg}`;
+    } catch {
+      pass = false;
+      const posMsg = position ? ` at ${position}` : '';
+      message = `Expected panel open${posMsg} but found none (count: ${lastActual})`;
+    }
+
+    return {
+      name: assertionName,
+      pass,
+      message: () => message,
+      actual: lastActual,
     };
   },
 });

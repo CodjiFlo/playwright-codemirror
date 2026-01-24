@@ -33,10 +33,13 @@ export { ExtensionRegistryManager } from './extensions.js';
 export type {
   CMEditorOptions,
   CMEditorSource,
+  DiagnosticInfo,
+  DiagnosticSeverity,
   ExtensionDefinition,
   ExtensionRegistry,
   LineCountAssertionOptions,
   LineRange,
+  PanelPosition,
   PartialScrollPosition,
   ScrollabilityAssertionOptions,
   ScrollAssertionOptions,
@@ -45,5 +48,6 @@ export type {
   ScrollPosition,
   ScrollToLineOptions,
   ScrollToOptions,
+  TooltipPosition,
   ViewportLineInfo,
 } from './types.js';
