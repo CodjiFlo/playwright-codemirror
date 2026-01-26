@@ -3,16 +3,33 @@ import type {
   CMEditorOptions,
   CMEditorSource,
   ExtensionDefinition,
-  LineRange,
   PartialScrollPosition,
   ScrollDimensions,
-  ScrollLinePosition,
   ScrollPosition,
   ScrollToLineOptions,
   ScrollToOptions,
   ViewportLineInfo,
 } from './types.js';
 import { extensionRegistry, ExtensionRegistryManager } from './extensions.js';
+import {
+  getScrollPosition,
+  getScrollDimensions,
+  scrollTo as scrollToHelper,
+  scrollBy as scrollByHelper,
+  scrollToLine as scrollToLineHelper,
+  waitForScrollIdle as waitForScrollIdleHelper,
+} from './scroll.js';
+import {
+  getLinesInViewport,
+  isLineRendered as isLineRenderedHelper,
+  isLineVisible as isLineVisibleHelper,
+  getDocumentLineNumber,
+  getDocumentLineCount,
+} from './viewport.js';
+import {
+  scrollToLineAndLocate as scrollToLineAndLocateHelper,
+  getFirstVisibleLine,
+} from './locators.js';
 
 /**
  * CodeMirror 6 editor locator for Playwright.
@@ -215,6 +232,38 @@ export class CMEditor {
   }
 
   /**
+   * Locator for elements with an extension class.
+   *
+   * @param extensionName - Name of the registered extension
+   * @param key - Key within the extension
+   * @returns Locator for elements with the extension class
+   *
+   * @example
+   * ```typescript
+   * CMEditor.registerExtension('diff', {
+   *   lineAddition: 'cm-diff-line-addition',
+   * });
+   * await expect(editor.ext('diff', 'lineAddition')).toHaveCount(5);
+   * ```
+   */
+  ext(extensionName: string, key: string): Locator {
+    const className = this.registry.getClass(extensionName, key);
+    return this.view.locator(`.${className}`);
+  }
+
+  /**
+   * Get the extension registry used by this editor instance.
+   * Useful for registering extensions on an isolated registry.
+   */
+  getRegistry(): ExtensionRegistryManager {
+    return this.registry;
+  }
+
+  // ============================================================
+  // Line Navigation Methods
+  // ============================================================
+
+  /**
    * Get the first line currently visible in the viewport.
    *
    * Unlike `lineInDOMAt(0)`, this skips anchor lines that are in the DOM
@@ -230,11 +279,7 @@ export class CMEditor {
    * ```
    */
   async firstVisibleLine(): Promise<Locator> {
-    const info = await this.linesInViewport();
-    if (info.partiallyVisible.length === 0) {
-      throw new Error('No visible lines in viewport');
-    }
-    return this.scrollToLineAndLocate(info.partiallyVisible[0].first);
+    return getFirstVisibleLine(this.view, this.linesInDOM);
   }
 
   /**
@@ -264,67 +309,7 @@ export class CMEditor {
     lineNumber: number,
     options: ScrollToLineOptions & { timeout?: number } = {}
   ): Promise<Locator> {
-    if (lineNumber < 1) {
-      throw new Error(`Line number must be >= 1, got ${lineNumber}`);
-    }
-    const timeout = options.timeout ?? 5000;
-    await this.scrollToLine(lineNumber, options);
-
-    // Find the line by its gutter number (works with virtual rendering)
-    // The gutter element with the line number is at the same vertical position as the line
-    const gutterLocator = this.view.locator(
-      `.cm-lineNumbers .cm-gutterElement:text-is("${lineNumber}")`
-    );
-
-    // Wait for the gutter element to be visible
-    await gutterLocator.waitFor({ state: 'visible', timeout });
-
-    // Find the line by matching gutter element position to line position
-    // The gutter elements and lines are visually aligned, so we find the
-    // gutter element with the target line number and get the line at the same position
-    const lineIndex = await this.view.evaluate(
-      (el, targetLineNum) => {
-        // Find the gutter element with the target line number
-        const gutterElements = el.querySelectorAll(
-          '.cm-lineNumbers .cm-gutterElement'
-        );
-        let targetGutterEl: Element | null = null;
-
-        for (const gutterEl of gutterElements) {
-          if (gutterEl.textContent === String(targetLineNum)) {
-            targetGutterEl = gutterEl;
-            break;
-          }
-        }
-
-        if (!targetGutterEl) return -1;
-
-        // Get the top position of the gutter element
-        const gutterRect = targetGutterEl.getBoundingClientRect();
-        const gutterTop = gutterRect.top;
-
-        // Find the line at the same vertical position
-        const lines = el.querySelectorAll('.cm-line');
-        for (let i = 0; i < lines.length; i++) {
-          const lineRect = lines[i].getBoundingClientRect();
-          // Check if the line's top is within a small tolerance of the gutter's top
-          if (Math.abs(lineRect.top - gutterTop) < 5) {
-            return i;
-          }
-        }
-
-        return -1;
-      },
-      lineNumber
-    );
-
-    if (lineIndex === -1) {
-      throw new Error(`Line ${lineNumber} not found after scrolling`);
-    }
-
-    const locator = this.linesInDOM.nth(lineIndex);
-    await locator.waitFor({ state: 'visible', timeout });
-    return locator;
+    return scrollToLineAndLocateHelper(this.view, this.linesInDOM, lineNumber, options);
   }
 
   /**
@@ -340,43 +325,7 @@ export class CMEditor {
    * ```
    */
   async documentLineCount(): Promise<number> {
-    return this.view.evaluate((el) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cmView = (el as any).cmView;
-      if (cmView?.state?.doc) {
-        return cmView.state.doc.lines;
-      }
-      // Fallback: count DOM elements (inaccurate for large files)
-      return el.querySelectorAll('.cm-line').length;
-    });
-  }
-
-  /**
-   * Locator for elements with an extension class.
-   *
-   * @param extensionName - Name of the registered extension
-   * @param key - Key within the extension
-   * @returns Locator for elements with the extension class
-   *
-   * @example
-   * ```typescript
-   * CMEditor.registerExtension('diff', {
-   *   lineAddition: 'cm-diff-line-addition',
-   * });
-   * await expect(editor.ext('diff', 'lineAddition')).toHaveCount(5);
-   * ```
-   */
-  ext(extensionName: string, key: string): Locator {
-    const className = this.registry.getClass(extensionName, key);
-    return this.view.locator(`.${className}`);
-  }
-
-  /**
-   * Get the extension registry used by this editor instance.
-   * Useful for registering extensions on an isolated registry.
-   */
-  getRegistry(): ExtensionRegistryManager {
-    return this.registry;
+    return getDocumentLineCount(this.view);
   }
 
   // ============================================================
@@ -389,10 +338,7 @@ export class CMEditor {
    * @returns Promise resolving to { scrollTop, scrollLeft }
    */
   async scrollPosition(): Promise<ScrollPosition> {
-    return this.scroller.evaluate((el) => ({
-      scrollTop: el.scrollTop,
-      scrollLeft: el.scrollLeft,
-    }));
+    return getScrollPosition(this.scroller);
   }
 
   /**
@@ -401,12 +347,7 @@ export class CMEditor {
    * @returns Promise resolving to scroll dimensions
    */
   async scrollDimensions(): Promise<ScrollDimensions> {
-    return this.scroller.evaluate((el) => ({
-      scrollWidth: el.scrollWidth,
-      scrollHeight: el.scrollHeight,
-      clientWidth: el.clientWidth,
-      clientHeight: el.clientHeight,
-    }));
+    return getScrollDimensions(this.scroller);
   }
 
   /**
@@ -426,20 +367,7 @@ export class CMEditor {
     position: PartialScrollPosition,
     options: ScrollToOptions = {}
   ): Promise<void> {
-    const { waitForIdle = true } = options;
-
-    await this.scroller.evaluate((el, pos) => {
-      if (pos.scrollTop !== undefined) {
-        el.scrollTop = pos.scrollTop;
-      }
-      if (pos.scrollLeft !== undefined) {
-        el.scrollLeft = pos.scrollLeft;
-      }
-    }, position);
-
-    if (waitForIdle) {
-      await this.waitForScrollIdle();
-    }
+    return scrollToHelper(this.scroller, position, options);
   }
 
   /**
@@ -456,30 +384,7 @@ export class CMEditor {
    * ```
    */
   async waitForScrollIdle(timeout = 1000): Promise<void> {
-    await this.scroller.evaluate((el, timeoutMs) => {
-      return new Promise<void>((resolve) => {
-        let lastTop = el.scrollTop;
-        let lastLeft = el.scrollLeft;
-        let stableFrames = 0;
-
-        const check = () => {
-          if (el.scrollTop === lastTop && el.scrollLeft === lastLeft) {
-            stableFrames++;
-            if (stableFrames >= 3) {
-              return resolve();
-            }
-          } else {
-            stableFrames = 0;
-            lastTop = el.scrollTop;
-            lastLeft = el.scrollLeft;
-          }
-          requestAnimationFrame(check);
-        };
-
-        requestAnimationFrame(check);
-        setTimeout(resolve, timeoutMs);
-      });
-    }, timeout);
+    return waitForScrollIdleHelper(this.scroller, timeout);
   }
 
   /**
@@ -494,14 +399,7 @@ export class CMEditor {
    * ```
    */
   async scrollBy(delta: PartialScrollPosition): Promise<void> {
-    await this.scroller.evaluate((el, d) => {
-      if (d.scrollTop !== undefined) {
-        el.scrollTop += d.scrollTop;
-      }
-      if (d.scrollLeft !== undefined) {
-        el.scrollLeft += d.scrollLeft;
-      }
-    }, delta);
+    return scrollByHelper(this.scroller, delta);
   }
 
   /**
@@ -527,70 +425,7 @@ export class CMEditor {
     lineNumber: number,
     options: ScrollToLineOptions = {}
   ): Promise<void> {
-    if (lineNumber < 1) {
-      throw new Error(`Line number must be >= 1, got ${lineNumber}`);
-    }
-
-    const { position = 'top', waitForIdle = true } = options;
-
-    // Convert position to a numeric offset factor (0 = top, 0.5 = center, 1 = bottom)
-    let offsetFactor: number;
-    if (position === 'top') {
-      offsetFactor = 0;
-    } else if (position === 'center') {
-      offsetFactor = 0.5;
-    } else if (position === 'bottom') {
-      offsetFactor = 1;
-    } else {
-      offsetFactor = position;
-    }
-
-    await this.view.evaluate(
-      (el, { targetLine, offsetFactor }) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const cmView = (el as any).cmView;
-        const scroller = el.querySelector('.cm-scroller') as HTMLElement;
-        if (!scroller) return;
-
-        if (cmView?.state?.doc && cmView.coordsAtPos) {
-          // Use CM6's internal geometry - accounts for wrapped lines, folds, etc.
-          try {
-            const line = cmView.state.doc.line(targetLine);
-            const coords = cmView.coordsAtPos(line.from);
-            if (coords) {
-              const scrollerRect = scroller.getBoundingClientRect();
-              const lineHeight = coords.bottom - coords.top;
-              // Calculate target position based on offsetFactor
-              const viewportOffset = scroller.clientHeight * offsetFactor;
-              // For bottom position, account for line height
-              const lineOffset = offsetFactor === 1 ? lineHeight : 0;
-              scroller.scrollTop +=
-                coords.top - scrollerRect.top - viewportOffset + lineOffset;
-              return;
-            }
-          } catch {
-            // Fall through to fallback
-          }
-        }
-
-        // Fallback: estimate based on first line height (uniform height assumption)
-        const firstLine = scroller.querySelector('.cm-line');
-        if (!firstLine) return;
-
-        const lineHeight = firstLine.getBoundingClientRect().height;
-        const viewportOffset = scroller.clientHeight * offsetFactor;
-        const lineOffset = offsetFactor === 1 ? lineHeight : 0;
-        scroller.scrollTop = Math.max(
-          0,
-          (targetLine - 1) * lineHeight - viewportOffset + lineOffset
-        );
-      },
-      { targetLine: lineNumber, offsetFactor }
-    );
-
-    if (waitForIdle) {
-      await this.waitForScrollIdle();
-    }
+    return scrollToLineHelper(this.view, lineNumber, options);
   }
 
   // ============================================================
@@ -614,106 +449,7 @@ export class CMEditor {
    * ```
    */
   async linesInViewport(): Promise<ViewportLineInfo> {
-    return this.view.evaluate((el) => {
-      const scroller = el.querySelector('.cm-scroller') as HTMLElement;
-      if (!scroller) {
-        return { fullyVisible: [], partiallyVisible: [] };
-      }
-
-      const scrollerRect = scroller.getBoundingClientRect();
-      const lines = el.querySelectorAll('.cm-line');
-      const gutterElements = el.querySelectorAll(
-        '.cm-lineNumbers .cm-gutterElement'
-      );
-
-      // Build a map of gutter top positions to line numbers
-      // CodeMirror includes placeholder elements for width calculation - skip them
-      const gutterTopToLineNum = new Map<number, number>();
-      for (const gutterEl of gutterElements) {
-        const rect = gutterEl.getBoundingClientRect();
-
-        // Skip placeholder elements (they have height 0 or are positioned off-screen)
-        if (rect.height === 0 || rect.top < -1000) {
-          continue;
-        }
-
-        const text = gutterEl.textContent?.trim();
-        if (text && /^\d+$/.test(text)) {
-          const lineNum = parseInt(text, 10);
-          // Round to avoid floating point issues
-          gutterTopToLineNum.set(Math.round(rect.top), lineNum);
-        }
-      }
-
-      // Collect visibility info for each line
-      const fullyVisibleLines: number[] = [];
-      const partiallyVisibleLines: number[] = [];
-
-      for (const line of lines) {
-        const lineRect = line.getBoundingClientRect();
-        const lineTop = Math.round(lineRect.top);
-
-        // Find the matching line number from gutter
-        let lineNum: number | undefined;
-        for (const [gutterTop, num] of gutterTopToLineNum.entries()) {
-          if (Math.abs(lineTop - gutterTop) < 5) {
-            lineNum = num;
-            break;
-          }
-        }
-
-        if (lineNum === undefined) continue;
-
-        // Check visibility
-        const fullyVisible =
-          lineRect.top >= scrollerRect.top &&
-          lineRect.bottom <= scrollerRect.bottom;
-        const partiallyVisible =
-          lineRect.bottom > scrollerRect.top &&
-          lineRect.top < scrollerRect.bottom;
-
-        if (fullyVisible) {
-          fullyVisibleLines.push(lineNum);
-        }
-        if (partiallyVisible) {
-          partiallyVisibleLines.push(lineNum);
-        }
-      }
-
-      // Sort line numbers
-      fullyVisibleLines.sort((a, b) => a - b);
-      partiallyVisibleLines.sort((a, b) => a - b);
-
-      // Convert to ranges (handles folded regions creating gaps)
-      const toRanges = (lineNums: number[]): { first: number; last: number }[] => {
-        if (lineNums.length === 0) return [];
-
-        const ranges: { first: number; last: number }[] = [];
-        let rangeStart = lineNums[0];
-        let rangeEnd = lineNums[0];
-
-        for (let i = 1; i < lineNums.length; i++) {
-          if (lineNums[i] === rangeEnd + 1) {
-            // Continue current range
-            rangeEnd = lineNums[i];
-          } else {
-            // Gap detected, start new range
-            ranges.push({ first: rangeStart, last: rangeEnd });
-            rangeStart = lineNums[i];
-            rangeEnd = lineNums[i];
-          }
-        }
-        // Don't forget the last range
-        ranges.push({ first: rangeStart, last: rangeEnd });
-
-        return ranges;
-      };
-
-      return {
-        fullyVisible: toRanges(fullyVisibleLines),
-        partiallyVisible: toRanges(partiallyVisibleLines),
-      };
-    });
+    return getLinesInViewport(this.view);
   }
 
   /**
@@ -731,28 +467,7 @@ export class CMEditor {
    * ```
    */
   async isLineRendered(lineNumber: number): Promise<boolean> {
-    if (lineNumber < 1) {
-      throw new Error(`Line number must be >= 1, got ${lineNumber}`);
-    }
-
-    return this.view.evaluate((el, targetLineNum) => {
-      const gutterElements = el.querySelectorAll(
-        '.cm-lineNumbers .cm-gutterElement'
-      );
-
-      for (const gutterEl of gutterElements) {
-        // Skip placeholder elements (they have height 0 or are positioned off-screen)
-        const rect = gutterEl.getBoundingClientRect();
-        if (rect.height === 0 || rect.top < -1000) {
-          continue;
-        }
-
-        if (gutterEl.textContent?.trim() === String(targetLineNum)) {
-          return true;
-        }
-      }
-      return false;
-    }, lineNumber);
+    return isLineRenderedHelper(this.view, lineNumber);
   }
 
   /**
@@ -776,68 +491,8 @@ export class CMEditor {
    * }
    * ```
    */
-  async isLineVisible(
-    lineNumber: number,
-    partial: boolean = false
-  ): Promise<boolean> {
-    if (lineNumber < 1) {
-      throw new Error(`Line number must be >= 1, got ${lineNumber}`);
-    }
-
-    return this.view.evaluate(
-      (el, { targetLineNum, partial }) => {
-        const scroller = el.querySelector('.cm-scroller') as HTMLElement;
-        if (!scroller) return false;
-
-        const scrollerRect = scroller.getBoundingClientRect();
-        const gutterElements = el.querySelectorAll(
-          '.cm-lineNumbers .cm-gutterElement'
-        );
-
-        // Find the gutter element for the target line
-        // Skip placeholder elements (they have height 0 or are positioned off-screen)
-        let targetGutterEl: Element | null = null;
-        for (const gutterEl of gutterElements) {
-          const rect = gutterEl.getBoundingClientRect();
-          if (rect.height === 0 || rect.top < -1000) {
-            continue;
-          }
-
-          if (gutterEl.textContent?.trim() === String(targetLineNum)) {
-            targetGutterEl = gutterEl;
-            break;
-          }
-        }
-
-        if (!targetGutterEl) return false;
-
-        // Find the corresponding line element
-        const gutterRect = targetGutterEl.getBoundingClientRect();
-        const gutterTop = gutterRect.top;
-
-        const lines = el.querySelectorAll('.cm-line');
-        for (const line of lines) {
-          const lineRect = line.getBoundingClientRect();
-          if (Math.abs(lineRect.top - gutterTop) < 5) {
-            // Found the line, check visibility
-            if (partial) {
-              return (
-                lineRect.bottom > scrollerRect.top &&
-                lineRect.top < scrollerRect.bottom
-              );
-            } else {
-              return (
-                lineRect.top >= scrollerRect.top &&
-                lineRect.bottom <= scrollerRect.bottom
-              );
-            }
-          }
-        }
-
-        return false;
-      },
-      { targetLineNum: lineNumber, partial }
-    );
+  async isLineVisible(lineNumber: number, partial: boolean = false): Promise<boolean> {
+    return isLineVisibleHelper(this.view, lineNumber, partial);
   }
 
   /**
@@ -856,52 +511,6 @@ export class CMEditor {
    * ```
    */
   async documentLineNumber(lineLocator: Locator): Promise<number> {
-    // Use elementHandle to get a reference we can pass to evaluate
-    const lineElement = await lineLocator.elementHandle();
-    if (!lineElement) {
-      throw new Error('Line element not found');
-    }
-
-    // Find the matching gutter element by comparing positions within the same context
-    const lineNumber = await this.view.evaluate(
-      (el, lineEl) => {
-        if (!lineEl) return null;
-
-        const lineRect = lineEl.getBoundingClientRect();
-        const gutterElements = el.querySelectorAll(
-          '.cm-lineNumbers .cm-gutterElement'
-        );
-
-        // CodeMirror includes placeholder elements in gutters for width calculation
-        // These are absolutely positioned off-screen or have height:0
-        // We need to filter these out by checking if the element is visible
-        for (const gutterEl of gutterElements) {
-          const gutterRect = gutterEl.getBoundingClientRect();
-
-          // Skip placeholder elements (they have height 0 or are positioned off-screen)
-          if (gutterRect.height === 0 || gutterRect.top < -1000) {
-            continue;
-          }
-
-          // Compare viewport-relative coordinates directly
-          if (Math.abs(gutterRect.top - lineRect.top) < 5) {
-            const text = gutterEl.textContent?.trim();
-            if (text && /^\d+$/.test(text)) {
-              return parseInt(text, 10);
-            }
-          }
-        }
-        return null;
-      },
-      lineElement
-    );
-
-    await lineElement.dispose();
-
-    if (lineNumber === null) {
-      throw new Error('Could not determine line number for element');
-    }
-
-    return lineNumber;
+    return getDocumentLineNumber(this.view, lineLocator);
   }
 }
