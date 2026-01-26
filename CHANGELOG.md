@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0-alpha] - 2026-01-26
+
+### Removed
+
+- **`withStep()` export** - Users should use Playwright's native `test.step()` API instead
+
+### Breaking Changes
+
+- `withStep()` is no longer exported (use `test.step()` from `@playwright/test`)
+
 ## [0.6.0-alpha] - 2026-01-26
 
 ### Added
@@ -124,6 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial alpha release with basic CodeMirror 6 testing helpers.
 
+[0.7.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.6.0-alpha...v0.7.0-alpha
 [0.6.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.5.0-alpha...v0.6.0-alpha
 [0.5.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.4.0-alpha...v0.5.0-alpha
 [0.4.0-alpha]: https://github.com/CodjiFlo/playwright-codemirror/compare/v0.3.0-alpha...v0.4.0-alpha
