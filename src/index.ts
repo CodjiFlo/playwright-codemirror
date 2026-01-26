@@ -28,6 +28,7 @@
 export { CMEditor } from './cm-editor.js';
 export { expect } from './expect.js';
 export { ExtensionRegistryManager } from './extensions.js';
+export { withStep } from './tracing.js';
 
 // Types
 export type {

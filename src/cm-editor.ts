@@ -30,6 +30,7 @@ import {
   scrollToLineAndLocate as scrollToLineAndLocateHelper,
   getFirstVisibleLine,
 } from './locators.js';
+import { withStep } from './tracing.js';
 
 /**
  * CodeMirror 6 editor locator for Playwright.
@@ -279,7 +280,9 @@ export class CMEditor {
    * ```
    */
   async firstVisibleLine(): Promise<Locator> {
-    return getFirstVisibleLine(this.view, this.linesInDOM);
+    return withStep('Get first visible line', () =>
+      getFirstVisibleLine(this.view, this.linesInDOM)
+    );
   }
 
   /**
@@ -309,7 +312,9 @@ export class CMEditor {
     lineNumber: number,
     options: ScrollToLineOptions & { timeout?: number } = {}
   ): Promise<Locator> {
-    return scrollToLineAndLocateHelper(this.view, this.linesInDOM, lineNumber, options);
+    return withStep(`Scroll to line and locate "${lineNumber}"`, () =>
+      scrollToLineAndLocateHelper(this.view, this.linesInDOM, lineNumber, options)
+    );
   }
 
   /**
@@ -325,7 +330,7 @@ export class CMEditor {
    * ```
    */
   async documentLineCount(): Promise<number> {
-    return getDocumentLineCount(this.view);
+    return withStep('Get document line count', () => getDocumentLineCount(this.view));
   }
 
   // ============================================================
@@ -338,7 +343,7 @@ export class CMEditor {
    * @returns Promise resolving to { scrollTop, scrollLeft }
    */
   async scrollPosition(): Promise<ScrollPosition> {
-    return getScrollPosition(this.scroller);
+    return withStep('Get scroll position', () => getScrollPosition(this.scroller));
   }
 
   /**
@@ -347,7 +352,7 @@ export class CMEditor {
    * @returns Promise resolving to scroll dimensions
    */
   async scrollDimensions(): Promise<ScrollDimensions> {
-    return getScrollDimensions(this.scroller);
+    return withStep('Get scroll dimensions', () => getScrollDimensions(this.scroller));
   }
 
   /**
@@ -367,7 +372,10 @@ export class CMEditor {
     position: PartialScrollPosition,
     options: ScrollToOptions = {}
   ): Promise<void> {
-    return scrollToHelper(this.scroller, position, options);
+    const posStr = [position.scrollTop, position.scrollLeft].filter((v) => v !== undefined).join(', ');
+    return withStep(`Scroll to "${posStr}"`, () =>
+      scrollToHelper(this.scroller, position, options)
+    );
   }
 
   /**
@@ -384,7 +392,9 @@ export class CMEditor {
    * ```
    */
   async waitForScrollIdle(timeout = 1000): Promise<void> {
-    return waitForScrollIdleHelper(this.scroller, timeout);
+    return withStep('Wait for scroll idle', () =>
+      waitForScrollIdleHelper(this.scroller, timeout)
+    );
   }
 
   /**
@@ -399,7 +409,8 @@ export class CMEditor {
    * ```
    */
   async scrollBy(delta: PartialScrollPosition): Promise<void> {
-    return scrollByHelper(this.scroller, delta);
+    const deltaStr = [delta.scrollTop, delta.scrollLeft].filter((v) => v !== undefined).join(', ');
+    return withStep(`Scroll by "${deltaStr}"`, () => scrollByHelper(this.scroller, delta));
   }
 
   /**
@@ -425,7 +436,9 @@ export class CMEditor {
     lineNumber: number,
     options: ScrollToLineOptions = {}
   ): Promise<void> {
-    return scrollToLineHelper(this.view, lineNumber, options);
+    return withStep(`Scroll to line "${lineNumber}"`, () =>
+      scrollToLineHelper(this.view, lineNumber, options)
+    );
   }
 
   // ============================================================
@@ -449,7 +462,7 @@ export class CMEditor {
    * ```
    */
   async linesInViewport(): Promise<ViewportLineInfo> {
-    return getLinesInViewport(this.view);
+    return withStep('Get lines in viewport', () => getLinesInViewport(this.view));
   }
 
   /**
@@ -467,7 +480,9 @@ export class CMEditor {
    * ```
    */
   async isLineRendered(lineNumber: number): Promise<boolean> {
-    return isLineRenderedHelper(this.view, lineNumber);
+    return withStep(`Check line rendered "${lineNumber}"`, () =>
+      isLineRenderedHelper(this.view, lineNumber)
+    );
   }
 
   /**
@@ -492,7 +507,9 @@ export class CMEditor {
    * ```
    */
   async isLineVisible(lineNumber: number, partial: boolean = false): Promise<boolean> {
-    return isLineVisibleHelper(this.view, lineNumber, partial);
+    return withStep(`Check line visible "${lineNumber}"`, () =>
+      isLineVisibleHelper(this.view, lineNumber, partial)
+    );
   }
 
   /**
@@ -511,6 +528,8 @@ export class CMEditor {
    * ```
    */
   async documentLineNumber(lineLocator: Locator): Promise<number> {
-    return getDocumentLineNumber(this.view, lineLocator);
+    return withStep('Get document line number', () =>
+      getDocumentLineNumber(this.view, lineLocator)
+    );
   }
 }
