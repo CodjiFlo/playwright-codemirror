@@ -1,4 +1,11 @@
-Reminder: releases are auto-published when a new tag is pushed.
+## Release Workflow
+
+Releases are auto-published when a new tag is pushed.
+
+**Before pushing a tag**, ensure:
+1. `CHANGELOG.md` has an entry for the version (e.g., `## [0.7.0-alpha] - YYYY-MM-DD`)
+2. `package.json` version matches the tag
+3. Add comparison link at bottom of CHANGELOG.md
 
 ## LLM Test Debugging with Trace Exporter
 
